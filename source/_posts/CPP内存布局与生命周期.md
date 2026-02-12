@@ -1,6 +1,9 @@
 ---
 title: C++内存布局与生命周期
 date: 2026-02-12 15:35:54
+cover: images/cpp/cpp.jpg
+categories:
+  - 技术
 tags:
   - C++
 ---

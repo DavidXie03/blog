@@ -1,6 +1,9 @@
 ---
 title: C++移动语义
 date: 2026-02-12 15:35:55
+cover: images/cpp/cpp.jpg
+categories:
+  - 技术
 tags:
   - C++
 ---

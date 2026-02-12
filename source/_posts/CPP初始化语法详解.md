@@ -1,6 +1,9 @@
 ---
 title: C++初始化语法详解
 date: 2026-02-12 15:35:53
+cover: images/cpp/cpp.jpg
+categories:
+  - 技术
 tags:
   - C++
 ---

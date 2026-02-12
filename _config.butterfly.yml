@@ -4,6 +4,11 @@
 
 default_top_img: images/site/top.jpg
 
+# footer是否显示图片背景(与top_img一致)
+footer_img: true
+
+favicon: images/site/favicon.svg
+
 avatar:
   img: images/site/avatar.jpg
   effect: false
@@ -11,6 +16,7 @@ avatar:
 post_meta:
   # Home Page
   page:
+    date_type: updated
     date_format: relative
 
 toc:
@@ -23,9 +29,6 @@ code_blocks:
   theme: pale night
   macStyle: true
 
-busuanzi:
-  page_pv: false
-
 aside:
   card_author:
     description: 'SDE <a href="https://www.tencent.com" target="_blank">@Tencent</a> | B.Eng. in CS <a href="https://www.hitsz.edu.cn" target="_blank">@HITSZ</a> </br> Photographer | Otaku'
@@ -35,14 +38,18 @@ aside:
     content: Code is cheap. Show me your talk.
   card_archives:
     enable: false
-  card_webinfo:
+  card_recent_post:
     enable: false
+
+busuanzi:
+  site_uv: false
+  site_pv: false
 
 social:
   fab fa-github: https://github.com/DavidXie03 || Github
   fab fa-leetcode: https://leetcode.cn/u/jia-mian-m8/ || 力扣
-  fas fa-envelope: mailto:davidxie03@qq.com || Email
   fab fa-500px: https://500px.com.cn/davidxie03 || 500px
+  fas fa-envelope: mailto:davidxie03@qq.com || Email
 
 # 美化页面显示
 beautify:
@@ -75,11 +82,17 @@ share:
 # 阅读模式
 readmode: false
 
+# Add a mask to the header and footer
+mask:
+  header: false
+  footer: false
+
 inject:
   head:
     - "<style>.avatar-img img:hover { transform: none !important; }</style>"
     - "<style>.card-info-social-icons i:hover { transform: none !important; }</style>"
     - "<style>#page-header.full_page, #page-header.not-home-page, #page-header.post-bg { background-color: rgba(40, 120, 220, 0.35); background-blend-mode: overlay; }</style>"
+    - "<style>#footer { background-color: rgba(40, 120, 220, 0.35); background-blend-mode: overlay; }</style>"
     - "<style>#local-search .search-dialog hr { display: none; }</style>"
 
 CDN:
