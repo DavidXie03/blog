@@ -71,6 +71,9 @@ search:
 share:
   use:
 
+# 阅读模式
+readmode: false
+
 inject:
   head:
     - "<style>.avatar-img img:hover { transform: none !important; }</style>"
