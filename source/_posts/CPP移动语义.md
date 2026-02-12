@@ -1,6 +1,6 @@
 ---
 title: C++移动语义
-date: 2026-02-12 15:35:55
+date: 2026-01-16 21:10:00
 cover: images/cpp/cpp.jpg
 categories:
   - 技术
