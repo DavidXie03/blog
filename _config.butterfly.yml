@@ -40,6 +40,7 @@ aside:
 
 social:
   fab fa-github: https://github.com/DavidXie03 || Github
+  fab fa-leetcode: https://leetcode.cn/u/jia-mian-m8/ || 力扣
   fas fa-envelope: mailto:davidxie03@qq.com || Email
   fab fa-500px: https://500px.com.cn/davidxie03 || 500px
 
@@ -80,3 +81,7 @@ inject:
     - "<style>.card-info-social-icons i:hover { transform: none !important; }</style>"
     - "<style>#page-header.full_page, #page-header.not-home-page, #page-header.post-bg { background-color: rgba(40, 120, 220, 0.35); background-blend-mode: overlay; }</style>"
     - "<style>#local-search .search-dialog hr { display: none; }</style>"
+
+CDN:
+  option:
+    fontawesome: https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css
