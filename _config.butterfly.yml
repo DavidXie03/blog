@@ -28,7 +28,7 @@ busuanzi:
 
 aside:
   card_author:
-    description: 'SDE <a href="https://www.tencent.com" target="_blank">@Tencent</a> </br> B.Eng. in CS <a href="https://www.hitsz.edu.cn" target="_blank">@HITSZ</a> </br> Photographer'
+    description: 'SDE <a href="https://www.tencent.com" target="_blank">@Tencent</a> | B.Eng. in CS <a href="https://www.hitsz.edu.cn" target="_blank">@HITSZ</a> </br> Photographer | Otaku'
     button:
       enable: false
   card_announcement:
@@ -42,6 +42,7 @@ social:
   fab fa-github: https://github.com/DavidXie03 || Github
   fas fa-envelope: mailto:davidxie03@qq.com || Email
   fab fa-500px: https://500px.com.cn/davidxie03 || 500px
+  fab fa-bilibili: https://space.bilibili.com/346408087 || Bilibili
 
 # 美化页面显示
 beautify:
