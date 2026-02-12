@@ -28,6 +28,7 @@ busuanzi:
 
 aside:
   card_author:
+    description: 'SDE <a href="https://www.tencent.com" target="_blank">@Tencent</a> </br> B.Eng. in CS <a href="https://www.hitsz.edu.cn" target="_blank">@HITSZ</a> </br> Photographer'
     button:
       enable: false
   card_announcement:
