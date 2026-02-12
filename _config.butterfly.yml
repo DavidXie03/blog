@@ -103,6 +103,20 @@ theme: butterfly
 deploy:
   type: ''
 
+post_meta:
+  # Home Page
+  page:
+    date_format: relative
+
+toc:
+  number: false
+  expand: true
+  # Only for post
+  scroll_percent: false
+
+busuanzi:
+  page_pv: false
+
 aside:
   card_author:
     button:
