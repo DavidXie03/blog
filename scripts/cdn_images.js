@@ -15,10 +15,19 @@ if (CDN_BASE_URL) {
 
   // Deploy mode: rewrite img src to CDN URLs
   hexo.extend.filter.register('after_render:html', (str) => {
-    return str.replace(
+    // Replace <img> src attributes
+    str = str.replace(
       /(<img\s[^>]*src=["'])(?:\/\.\/|\.\/|\/)?images\//g,
       `$1${baseUrl}/images/`
     );
+
+    // Replace background-image url() paths
+    str = str.replace(
+      /(url\(["']?)(?:\/\.\/|\.\/|\/)?images\//g,
+      `$1${baseUrl}/images/`
+    );
+
+    return str;
   });
 
   hexo.log.info(`[CDN Images] Enabled, base URL: ${baseUrl}`);
