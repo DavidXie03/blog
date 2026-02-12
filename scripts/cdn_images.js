@@ -21,6 +21,12 @@ if (CDN_BASE_URL) {
       `$1${baseUrl}/images/`
     );
 
+    // Replace <link> href attributes (e.g. favicon)
+    str = str.replace(
+      /(<link\s[^>]*href=["'])(?:\/\.\/|\.\/|\/)?images\//g,
+      `$1${baseUrl}/images/`
+    );
+
     // Replace background-image url() paths
     str = str.replace(
       /(url\(["']?)(?:\/\.\/|\.\/|\/)?images\//g,

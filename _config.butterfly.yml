@@ -16,8 +16,9 @@ avatar:
 post_meta:
   # Home Page
   page:
-    date_type: updated
     date_format: relative
+  post:
+    date_type: created
 
 toc:
   number: false
@@ -78,6 +79,12 @@ search:
 # 关闭分享
 share:
   use:
+
+# Choose: fancybox / medium_zoom
+# https://github.com/francoischalifour/medium-zoom
+# https://fancyapps.com/fancybox/
+# Leave it empty if you don't need lightbox
+lightbox: medium_zoom
 
 # 阅读模式
 readmode: false
