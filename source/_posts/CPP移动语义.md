@@ -13,7 +13,7 @@ C++中的每个表达式都有两个独立的属性：类型（type）和值类�
 
 C++11将值类别分为三个基本类别：
 
-![值类别体系](images/value_category.png)
+![值类别体系](images/cpp/value_category.png)
 
 lvalue（左值）是有持久身份的表达式，可以取地址，例如变量名、解引用表达式、返回左值引用的函数调用：
 
@@ -126,7 +126,7 @@ void forward(std::string&& s) {
 
 以一个简单的动态数组类为例：
 
-![移动语义资源转移](images/move_semantics.png)
+![移动语义资源转移](images/cpp/move_semantics.png)
 
 ```cpp
 class Buffer {
