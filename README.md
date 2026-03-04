@@ -9,17 +9,22 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 - **Hosting**: Cloudflare Pages
 - **Image Storage**: Cloudflare R2 (CDN)
 
-## Continuous Deployment
+## Features
+
+### Dev/Prod Parity
+
+The local development environment mirrors production exactly. A custom Hexo script detects whether `CDN_BASE_URL` is set — in production it rewrites image paths to CDN URLs; locally it spins up a middleware serving the same images from `source/_posts/images/`. No environment-specific configuration needed to get started.
+
+### Continuous Deployment
 
 Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
 
-## Image CDN with Auto-Sync
+### Image CDN with Auto-Sync
 
 Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production.
 
 - **Auto-sync**: Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
 - **CDN rewriting**: A custom Hexo script rewrites all image paths in generated HTML to CDN URLs when `CDN_BASE_URL` is set.
-- **Local dev**: When `CDN_BASE_URL` is not set, images are served locally from `source/_posts/images/` via a dev middleware — no configuration needed.
 
 **Required secrets for the GitHub Action:**
 
@@ -30,7 +35,7 @@ Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_BUCKET_NAME` | R2 bucket name |
 
-## Banner Behavior
+### Banner Behavior
 
 By default, Butterfly uses post cover images as the page banner. A custom script overrides this priority so the global default banner always takes effect unless a post explicitly sets its own `top_img`. This keeps the visual style consistent across all pages.
 
