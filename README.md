@@ -19,12 +19,11 @@ The local development environment mirrors production exactly. A custom Hexo scri
 
 Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
 
-### Image CDN with Auto-Sync
+### Automated Image Sync to Object Storage
 
 Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production.
 
 - **Auto-sync**: Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
-- **CDN rewriting**: A custom Hexo script rewrites all image paths in generated HTML to CDN URLs when `CDN_BASE_URL` is set.
 
 **Required secrets for the GitHub Action:**
 
