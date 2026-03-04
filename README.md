@@ -15,7 +15,7 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 
 The local development environment mirrors production exactly. A custom Hexo script detects whether `CDN_BASE_URL` is set — in production it rewrites image paths to CDN URLs; locally it spins up a middleware serving the same images from `source/_posts/images/`. No environment-specific configuration needed to get started.
 
-### Automated Image Sync to Object Storage
+### Image Auto-Sync
 
 Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production. Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
 
