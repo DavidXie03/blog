@@ -15,10 +15,6 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 
 The local development environment mirrors production exactly. A custom Hexo script detects whether `CDN_BASE_URL` is set — in production it rewrites image paths to CDN URLs; locally it spins up a middleware serving the same images from `source/_posts/images/`. No environment-specific configuration needed to get started.
 
-### Continuous Deployment
-
-Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
-
 ### Automated Image Sync to Object Storage
 
 Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production.
@@ -33,6 +29,10 @@ Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in
 | `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret access key |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_BUCKET_NAME` | R2 bucket name |
+
+### Continuous Deployment
+
+Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
 
 ## Local Development
 
