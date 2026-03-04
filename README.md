@@ -17,9 +17,7 @@ The local development environment mirrors production exactly. A custom Hexo scri
 
 ### Automated Image Sync to Object Storage
 
-Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production.
-
-- **Auto-sync**: Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
+Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production. Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
 
 **Required secrets for the GitHub Action:**
 
