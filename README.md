@@ -35,10 +35,6 @@ Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_BUCKET_NAME` | R2 bucket name |
 
-### Banner Behavior
-
-By default, Butterfly uses post cover images as the page banner. A custom script overrides this priority so the global default banner always takes effect unless a post explicitly sets its own `top_img`. This keeps the visual style consistent across all pages.
-
 ## Local Development
 
 **Prerequisites**: Node.js >= 14
