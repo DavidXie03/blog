@@ -7,7 +7,7 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 - **Framework**: Hexo 8.x
 - **Theme**: Butterfly 5.x
 - **Hosting**: [Cloudflare Pages](https://pages.cloudflare.com)
-- **Image Storage**: Cloudflare R2 (CDN)
+- **Image Storage**: [Cloudflare R2](https://developers.cloudflare.com/r2/) (CDN)
 
 ## Features
 
