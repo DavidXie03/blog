@@ -6,7 +6,7 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 
 - **Framework**: Hexo 8.x
 - **Theme**: Butterfly 5.x
-- **Hosting**: Cloudflare Pages
+- **Hosting**: [Cloudflare Pages](https://pages.cloudflare.com)
 - **Image Storage**: Cloudflare R2 (CDN)
 
 ## Features
@@ -30,7 +30,7 @@ Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in
 
 ### Continuous Deployment
 
-Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
+Every push to the `main` branch automatically triggers a build and deployment via Cloudflare Pages. No manual deployment steps required — the live site is always in sync with the repository.
 
 ## Local Development
 
