@@ -6,30 +6,22 @@ A personal blog built with [Hexo](https://hexo.io) and the [Butterfly](https://g
 
 - **Framework**: Hexo 8.x
 - **Theme**: Butterfly 5.x
+- **Hosting**: Cloudflare Pages
 - **Image Storage**: Cloudflare R2 (CDN)
 
-## Custom Scripts
+## Continuous Deployment
 
-### `scripts/cdn_images.js`
+Every push to the `main` branch automatically triggers a build and deployment via [Cloudflare Pages](https://pages.cloudflare.com). No manual deployment steps required — the live site is always in sync with the repository.
 
-Handles image path resolution for both local development and production deployment.
+## Image CDN with Auto-Sync
 
-- **Production**: When the environment variable `CDN_BASE_URL` is set, rewrites all relative image paths in generated HTML to absolute CDN URLs (covers `<img>`, `<link>`, and `background-image`).
-- **Local dev**: When `CDN_BASE_URL` is not set, registers a middleware that serves images from `source/_posts/images/` at the `/images/` route, so local preview works without any extra setup.
+Images are stored in `source/_posts/images/` and served via Cloudflare R2 CDN in production.
 
-### `scripts/top_img_priority.js`
+- **Auto-sync**: Any push to `source/_posts/images/` triggers a GitHub Action that syncs changed images to R2 using [rclone](https://rclone.org) — no manual upload needed.
+- **CDN rewriting**: A custom Hexo script rewrites all image paths in generated HTML to CDN URLs when `CDN_BASE_URL` is set.
+- **Local dev**: When `CDN_BASE_URL` is not set, images are served locally from `source/_posts/images/` via a dev middleware — no configuration needed.
 
-Adjusts the banner image priority for post pages.
-
-Butterfly's default priority is `page.top_img > page.cover > theme.default_top_img`. This script changes it to `page.top_img > theme.default_top_img > page.cover`, so the global default banner always takes precedence over per-post cover images unless a post explicitly sets its own `top_img`.
-
-## GitHub Actions
-
-### `sync-images-to-r2.yml`
-
-Automatically syncs images to Cloudflare R2 whenever changes are pushed to `source/_posts/images/`. Uses [rclone](https://rclone.org) under the hood.
-
-**Required secrets:**
+**Required secrets for the GitHub Action:**
 
 | Secret | Description |
 |--------|-------------|
@@ -37,6 +29,10 @@ Automatically syncs images to Cloudflare R2 whenever changes are pushed to `sour
 | `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret access key |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_BUCKET_NAME` | R2 bucket name |
+
+## Banner Behavior
+
+By default, Butterfly uses post cover images as the page banner. A custom script overrides this priority so the global default banner always takes effect unless a post explicitly sets its own `top_img`. This keeps the visual style consistent across all pages.
 
 ## Local Development
 
