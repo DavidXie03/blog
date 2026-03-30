@@ -1,5 +1,5 @@
 ---
-title: Harness Design for Long-Running Application Development
+title: 面向长时运行应用开发的 Harness 设计
 date: 2026-03-31 00:25:00
 categories:
   - 技术
@@ -11,9 +11,138 @@ tags:
   - Engineering
 ---
 
-> 原文：[Harness Design for Long-Running Application Development](https://www.anthropic.com/engineering/harness-design-long-running-apps)
-> 作者：Prithvi Rajasekaran（Anthropic Labs 团队成员）
-> 发布日期：2026 年 3 月 24 日
+这篇文章来自 Anthropic 工程博客，原文发布于 2026 年 3 月 24 日，作者 Prithvi Rajasekaran 是 Anthropic Labs 团队成员。文章记录了他在过去数月里解决两个相互关联问题的经历：如何让 Claude 产出高质量的前端设计，以及如何让它在没有人工干预的情况下构建完整的应用程序。他从生成对抗网络（GAN）中获得灵感，设计了"生成器 + 评估器"的多智能体结构，并最终将其扩展为一套包含规划器、生成器和评估器的三 Agent 架构，实现了数小时无人介入的全栈应用自主开发。文章还着重讨论了随着模型能力提升，Harness 设计应如何随之精简演化——这对当下从事 AI Agent 工程的开发者颇具参考价值。原文链接：[Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)。
+
+---
+
+## 译文
+
+过去几个月，我一直在研究两个相互关联的问题：让 Claude 产出高质量的前端设计，以及让它在无需人工干预的情况下构建完整的应用程序。这项工作源于我们早期在[前端设计技能](https://github.com/anthropics/claude-code/blob/main/plugins/frontend-design/skills/frontend-design/SKILL.md)和[长时运行编码 Agent Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 上的探索——通过提示工程与 Harness 设计，我们将 Claude 的表现大幅提升，但两者最终都碰到了天花板。
+
+为了突破，我开始寻找在两个差异悬殊的领域都能生效的 AI 工程新路径：一个领域靠主观审美，另一个靠可验证的正确性与可用性。受[生成对抗网络（GAN）](https://en.wikipedia.org/wiki/Generative_adversarial_network)的启发，我设计了一套包含生成器 Agent 与评估器 Agent 的多智能体结构。要让评估器打分既可靠又有品味，前提是先建立一套标准，将"这个设计好看吗"这类主观判断转化为具体可量化的维度。
+
+随后，我把这些思路移植到长时运行的自主编程中，沿用了早期 Harness 工作的两个经验：将构建任务拆解为可处理的小块，以及用结构化工件在会话间传递上下文。最终落地成一套三 Agent 架构——规划器、生成器、评估器——能在数小时的自主编程会话中产出完整的全栈应用。
+
+### 为什么简单实现总是失效
+
+我们此前已证明，Harness 设计对长时间运行的 Agentic 编程效果影响显著。在早期[实验](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)中，我们用一个初始化 Agent 将产品规格拆解为任务列表，编程 Agent 逐功能实现，并在会话间传递工件以保留上下文。更广泛的开发者社区也形成了类似共识，比如"Ralph Wiggum"方法用 hooks 或脚本让 Agent 保持持续迭代。
+
+但有些问题始终顽固。面对更复杂的任务，Agent 仍然容易随着时间推移偏离轨道。深入拆解后，我们归纳出两类常见的失效模式。
+
+**其一是上下文窗口填满后模型的连贯性下降**（详见我们关于[上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)的文章）。部分模型还会出现"上下文焦虑"——当它们判断自己快到上下文上限时，会提前草草收场。**上下文重置**——完全清空上下文窗口、启动新 Agent，同时配合一份携带前一个 Agent 状态和后续步骤的结构化交接文件——可以同时解决这两个问题。
+
+这与**压缩（compaction）**的思路不同：压缩是将对话前段就地摘要，让同一个 Agent 在压缩后的历史上继续工作。压缩保留了延续性，但给不了 Agent 一张白纸，上下文焦虑依然可能存在。重置能提供白纸，代价是交接文件必须携带足够的状态，让下一个 Agent 能顺畅接手。早期测试中，Claude Sonnet 4.5 的上下文焦虑严重到单靠压缩无法支撑长任务表现，上下文重置因此成为 Harness 设计的关键。这虽解决了核心问题，但也为每次运行带来了编排复杂度、额外的 Token 开销和延迟。
+
+**其二是自我评估问题**——这是我们此前未专门处理过的。让 Agent 评估自己的输出时，它往往会信心满满地给出好评，即便在人类看来质量明显平庸。这个问题在设计等主观任务中尤为突出，因为没有像软件测试那样的二元验证。一个布局是精致还是普通，本质上是一种判断，而 Agent 给自己打分时会系统性地偏向正面。
+
+即便是有可验证结果的任务，Agent 也时常表现出影响完成质量的判断失误。**将执行工作的 Agent 与评判工作的 Agent 分开**，被证明是应对这一问题的有效手段。分离本身不能立刻消除宽松倾向——评估器也是 LLM，同样倾向于对 LLM 生成的内容宽容。但将一个独立评估器调教得更加挑剔，远比让生成器批判自己的工作容易得多。一旦外部反馈存在，生成器就有了具体的改进抓手。
+
+### 前端设计：把主观质量变得可量化
+
+我从前端设计入手，因为自我评估问题在这里最为突出。没有任何干预的情况下，Claude 倾向于产出安全、中规中矩的布局——功能上说得过去，视觉上乏善可陈。
+
+有两个认识塑造了我为前端设计构建的 Harness。第一，审美虽然不能完全化约为分数——个人品味终究各异——但通过编码了设计原则和偏好的评分标准，可以推动质量提升。"这个设计漂亮吗"难以一致作答，但"这个设计符合我们的好设计原则吗"给了 Claude 具体的评判依据。第二，将前端生成与前端评分分离，可以形成驱动生成器不断进步的反馈闭环。
+
+基于此，我设计了四个评分维度，同时写入生成器和评估器的提示：
+
+- **设计质量**：整体是否浑然一体，而非零件拼凑？颜色、字体、布局、图像等元素能否共同营造出独特的氛围与气质。
+- **原创性**：是否有定制化的决策痕迹，还是模板套用、库默认值与 AI 生成模式的堆叠？人类设计师应当能认出刻意为之的创意选择。未经修改的库存组件，或 AI 生成的典型特征——比如白卡上的紫色渐变——都会在这里丢分。
+- **工艺**：技术层面的执行质量：字体层级、间距一致性、色彩和谐度、对比度。这是能力的基本盘，而非创意检验。大多数合理实现默认不会在这里出问题；失分意味着基本功缺失。
+- **功能性**：独立于美学的可用性。用户能否看懂界面要做什么，找到主要操作，不用瞎猜就能完成任务。
+
+我将设计质量与原创性的权重置于工艺和功能性之上。Claude 在工艺和功能性上默认表现良好，所需技术能力对模型来说是自然具备的。但在设计和原创性上，输出往往不过是平庸之作。这些评分标准明确惩罚了那些高度雷同的"AI 糊弄"模式，通过加重这两项的权重，推动模型在审美上多冒一点险。
+
+评估器的校准用了带详细评分解析的少量示例，确保其判断与我的偏好对齐，也减少了迭代中的分数漂移。
+
+整个循环搭建在 [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) 上，编排逻辑保持简洁。生成器 Agent 首先根据用户提示生成 HTML/CSS/JS 前端；评估器配备了 Playwright MCP，可以直接与实时页面交互，截图研究后再对每个维度打分并给出详细评语。评语作为下一轮迭代的输入反馈给生成器。每次生成运行 5 到 15 轮，每轮通常推着生成器往更有辨识度的方向走。由于评估器是在主动浏览页面而非评判静态截图，每个周期都需要真实的时间——完整跑下来最长可达四小时。我还要求生成器在每轮评估后做一个策略判断：如果分数走势良好，就在当前方向上深化；如果效果不对，就彻底换一套审美。
+
+各轮迭代中，评估器的评分通常会持续提升，直至趋于平稳，仍有改善空间。有些生成在渐进改良，另一些则在迭代间发生了明显的审美转向。
+
+评分标准的措辞以我未曾预料的方式影响着生成器。加入"最好的设计达到博物馆级别"这类表述后，设计呈现出特定的视觉收敛倾向，说明标准本身的语言直接塑造了输出的性格。
+
+分数走势并不总是线性向上的。后期版本整体上通常更好，但我经常发现自己更偏爱中间某一轮的结果而非最后一轮。实现复杂度也往往随轮次增加，生成器会在评估器的推动下尝试越来越有野心的方案。即便在第一轮，输出就已经明显好于没有任何提示的基线，说明评分标准和相关语言本身就在引导模型离开通用默认值，还未等评估器反馈介入便已奏效。
+
+有一个案例令人印象深刻：我提示模型为一家荷兰艺术博物馆创建网站。到第九轮，它产出了一个精致的深色主题落地页，视觉上无懈可击，但仍在我预期的范围之内。第十轮，它彻底推翻了既有方案，将网站重新构想为一种空间体验：用 CSS 透视渲染的棋盘地板三维房间，画作自由悬挂在墙上，以门洞而非滚动或点击的方式在画廊间穿行。这种创意跳跃，是我在单次生成中从未见过的。
+
+### 向全栈编程延伸
+
+带着这些发现，我将 GAN 启发的模式移植到了全栈开发中。生成器-评估器的循环与软件开发生命周期天然契合，代码审查和 QA 扮演的结构性角色与设计评估器如出一辙。
+
+#### 架构设计
+
+在早期的[长时运行 Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 中，我们通过初始化 Agent、逐功能推进的编程 Agent 以及会话间的上下文重置，解决了多会话编程的连贯性问题。Opus 4.5 在很大程度上自行消除了上下文焦虑，因此这套新的 Harness 彻底去掉了上下文重置——Agent 在整个构建过程中作为一个连续会话运行，上下文增长由 Claude Agent SDK 的自动压缩处理。
+
+三 Agent 系统的角色分工如下：
+
+**规划器（Planner）**：接受 1 到 4 句话的简短提示，将其扩展为完整的产品规格。我要求它在范围上保持野心，专注于产品背景和高层技术设计，而非细粒度的实现细节——原因是一旦规划器在早期把细节指定错了，错误就会顺着流程级联进入下游实现。约束 Agent 在交付物上，让它们自己摸索实现路径，这个思路更稳。同时，我也要求规划器主动寻找将 AI 功能编织进产品规格的机会。
+
+**生成器（Generator）**：沿用早期 Harness 的逐功能方式，以冲刺（sprint）为单位工作，逐一从规格中选取功能实现。每个冲刺使用 React、Vite、FastAPI 和 SQLite（后期换成了 PostgreSQL）技术栈，每轮冲刺结束时要求生成器先自我评估再交接给 QA，同时用 git 做版本控制。
+
+**评估器（Evaluator）**：用 Playwright MCP 像真实用户一样点击运行中的应用，测试 UI 功能、API 端点和数据库状态，再对照发现的 bug 和一套仿照前端实验改编的标准（覆盖产品深度、功能性、视觉设计和代码质量）逐项打分。每个维度都有硬性门槛，任何一项不达线，冲刺失败，生成器会收到具体的问题反馈。
+
+每个冲刺开始前，生成器和评估器会先协商一份**冲刺契约**：在动手写代码之前，就这一块工作的"完成"标准达成共识。产品规格有意保持高层，这个步骤是在用户故事和可测试实现之间架一座桥。生成器提出要做什么、用什么方式验收，评估器审核提案是否方向正确，两方反复协商直至对齐。
+
+通信通过文件完成：一个 Agent 写文件，另一个读取后在同一文件或新文件中回应。生成器依照约定好的契约开工，完成后交给 QA 验收。这样既保证了工作忠实于规格，又没有过早锁死实现细节。
+
+#### 跑起来
+
+第一版 Harness 使用 Claude Opus 4.5，同一批提示分别跑完整 Harness 和单 Agent 对照。
+
+用于生成复古游戏制作工具的提示是：
+
+> Create a 2D retro game maker with features including a level editor, sprite editor, entity behaviors, and a playable test mode.
+
+| Harness | 时长 | 费用 |
+|---------|------|------|
+| 单 Agent | 20 分钟 | $9 |
+| 完整 Harness | 6 小时 | $200 |
+
+费用超出 20 倍，但输出质量的差距一眼就看出来了。
+
+单 Agent 版本的核心玩法彻底坏了——实体能显示出来，但对任何输入毫无反应，实体定义和游戏运行时之间的连线断了，表面上看不出任何提示。Harness 版本从同一句提示出发，规划器将其扩展为横跨十个冲刺的 16 个功能规格，涵盖了精灵动画系统、行为模板、音效与音乐、AI 辅助的精灵生成器和关卡设计师，以及带可分享链接的游戏导出功能。整体完成度更高，最关键的是——游戏真的能玩了。
+
+让评估器达到这个水准需要下大力气调教。开箱即用的 Claude 是个糟糕的 QA Agent。早期运行里，它能识别出真实的问题，然后自己说服自己"这也没什么大不了"，转头就批准了。调教的方法是：读评估器的日志，找出它的判断和我的判断出现偏差的例子，更新 QA 提示来纠正。经过几轮这样的循环，评估器的打分才到了我能接受的水准。
+
+#### 迭代精简 Harness
+
+第一批结果令人鼓舞，但这套 Harness 也太笨重、太慢、太贵。Harness 里的每个组件，背后都是一个关于"模型自己做不到某件事"的假设，而这些假设值得持续检验——因为它们本来就可能是错的，而且随着模型进步很快就会过时。我们在[《构建有效 Agent》](https://www.anthropic.com/research/building-effective-agents)中提出的核心原则正是："找到最简单的可行方案，只在必要时才增加复杂度。"
+
+Opus 4.6 发布后（官方表述是"规划更谨慎、Agentic 任务持续时间更长、在大型代码库中运行更可靠、代码审查和调试能力更强"），这给了我进一步精简的理由。我换成了更系统的方式：每次只移除一个组件，观察它对最终结果的影响。
+
+**去掉冲刺结构**：Opus 4.6 的提升让模型可以自行处理任务分解，不再需要这层脚手架。规划器和评估器保留，评估器改为在整次运行结束后一次性打分，而非逐冲刺评估。
+
+由此得出的实践结论是：**评估器不是一道非此即彼的选择题，它在任务超出当前模型独立稳定完成的边界时才值得投入成本。**
+
+#### 更新版 Harness 的结果
+
+用以下提示在更新版 Harness 上生成数字音频工作站（DAW）：
+
+> Build a fully featured DAW in the browser using the Web Audio API.
+
+| Agent 与阶段 | 时长 | 费用 |
+|--------------|------|------|
+| 规划器 | 4.7 分钟 | $0.46 |
+| 构建（第 1 轮） | 2 小时 7 分钟 | $71.08 |
+| QA（第 1 轮） | 8.8 分钟 | $3.24 |
+| 构建（第 2 轮） | 1 小时 2 分钟 | $36.89 |
+| QA（第 2 轮） | 6.8 分钟 | $3.09 |
+| 构建（第 3 轮） | 10.9 分钟 | $5.88 |
+| QA（第 3 轮） | 9.6 分钟 | $4.06 |
+| **V2 Harness 合计** | **3 小时 50 分钟** | **$124.70** |
+
+QA Agent 依然揪出了真实的问题。第一轮反馈指出，若干核心 DAW 功能只有界面但没有交互深度——这些不是边角情况，而是让 DAW 能用的核心交互。经过几轮迭代，最终产出的应用具备了一个可用音乐制作程序所需的全部核心部件：在浏览器里跑通的编排视图、混音器和传输控件，以及一个可以完全通过提示驱动的集成 Agent——定拍子、铺旋律、建鼓轨、调混音、加混响，从头到尾不用手动操作。
+
+### 往后的路
+
+随着模型持续进步，大致可以预期它们能处理时间更长、难度更高的任务。在某些情况下，围绕模型的脚手架会随时间变得越来越不重要，等下一个模型出来，有些问题就自然解决了。但另一方面，模型越强，构建能突破模型基线能力的复杂 Harness 的空间也就越大。
+
+几点值得带走的经验：
+
+1. **始终针对你正在使用的模型做实验**，读它在真实问题上的运行轨迹，调优到你想要的结果。
+2. **面对复杂任务时**，把任务拆解、对各个子问题分配专项 Agent，有时能带来明显的质量提升。
+3. **每当新模型上线，重新审视你的 Harness**——剥掉不再承重的组件，加上此前做不到、现在可以做到的新能力。
+
+我的判断是：**有趣的 Harness 组合空间不会随模型进步而收窄，只会位移。对 AI 工程师来说，持续找到下一个新颖组合，才是真正的工作所在。**
 
 ---
 
@@ -78,7 +207,7 @@ In our earlier [long-running harness](https://www.anthropic.com/engineering/effe
 
 For this work I built on the foundation from the original harness with a three-agent system, with each agent addressing a specific gap I'd observed in prior runs. The system contained the following agent personas:
 
-**Planner**: Our previous long-running harness required the user to provide a detailed spec upfront. I wanted to automate that step, so I created a planner agent that took a simple 1-4 sentence prompt and expanded it into a full product spec. I prompted it to be ambitious about scope and to stay focused on product context and high level technical design rather than detailed technical implementation. This emphasis was due to the concern that if the planner tried to specify granular technical details upfront and got something wrong, the errors in the spec would cascade into the downstream implementation. It seemed smarter to constrain the agents on the deliverables to be produced and let them figure out the path as they worked. I also asked the planner to find opportunities to weave AI features into the product specs.
+**Planner**: Our previous long-running harness required the user to provide a detailed spec upfront. I wanted to automate that step, so I created a planner agent that took a simple 1-4 sentence prompt and expanded it into a full product spec. I prompted it to be ambitious about scope and to stay focused on product context and high level technical design rather than detailed technical implementation. This emphasis was due to the concern that if the planner tried to specify granular technical details upfront and got something wrong, the errors in the spec would cascade into the downstream implementation. It seemed smarter to constrain the agents on the deliverables to be produced and let them figure out the path as they worked. I also asked the planner to find opportunities to weave AI features into the product specs. (See example in the Appendix at the bottom.)
 
 **Generator**: The one-feature-at-a-time approach from the earlier harness worked well for scope management. I applied a similar model here, instructing the generator to work in sprints, picking up one feature at a time from the spec. Each sprint implemented the app with a React, Vite, FastAPI, and SQLite (later PostgreSQL) stack, and the generator was instructed to self-evaluate its work at the end of each sprint before handing off to QA. It also had git for version control.
 
@@ -90,7 +219,7 @@ Communication was handled via files: one agent would write a file, another agent
 
 #### Running the harness
 
-For the first version of this harness, I used Claude Opus 4.5, running user prompts against both the full harness and a single-agent system for comparison.
+For the first version of this harness, I used Claude Opus 4.5, running user prompts against both the full harness and a single-agent system for comparison. I used Opus 4.5 since this was our best coding model when I began these experiments.
 
 I wrote the following prompt to generate a retro video game maker:
 
@@ -103,25 +232,47 @@ I wrote the following prompt to generate a retro video game maker:
 
 The harness was over 20x more expensive, but the difference in output quality was immediately apparent.
 
-The solo run produced an app with broken core gameplay—entities appeared on screen but nothing responded to input, and the wiring between entity definitions and the game runtime was broken. The harness run, starting from the same one-sentence prompt, expanded into a 16-feature spec spread across ten sprints, including a sprite animation system, behavior templates, sound effects and music, an AI-assisted sprite generator and level designer, and game export with shareable links. The app showed noticeably more polish, and crucially—the core gameplay actually worked.
+I was expecting an interface where I could construct a level and its component parts (sprites, entities, tile layout) then hit play to actually play the level. I started by opening the solo run's output, and the initial application seemed in line with those expectations.
 
-Getting the evaluator to perform at this level took work. Out of the box, Claude is a poor QA agent. In early runs, it would identify legitimate issues, then talk itself into deciding they weren't a big deal and approve the work anyway. The tuning loop was to read the evaluator's logs, find examples where its judgment diverged from mine, and update the QA's prompt to solve for those issues. It took several rounds before the evaluator was grading in a way I found reasonable.
+As I clicked through, however, issues started to emerge. The layout wasted space, with fixed-height panels leaving most of the viewport empty. The workflow was rigid. Trying to populate a level prompted me to create sprites and entities first, but nothing in the UI guided me toward that sequence. More to the point, the actual game was broken. My entities appeared on screen but nothing responded to input. Digging into the code revealed that the wiring between entity definitions and the game runtime was broken, with no surface indication of where.
+
+After evaluating the solo run, I turned my attention to the harness run. This run started from the same one-sentence prompt, but the planner step expanded that prompt into a 16-feature spec spread across ten sprints. It went well beyond what the solo run attempted. In addition to the core editors and play mode, the spec called for a sprite animation system, behavior templates, sound effects and music, an AI-assisted sprite generator and level designer, and game export with shareable links. I gave the planner access to our frontend design skill, which it read and used to create a visual design language for the app as part of the spec. For each sprint, the generator and evaluator negotiated a contract defining the specific implementation details for the sprint, and the testable behaviors that would be tested to verify completion.
+
+The app immediately showed more polish and smoothness than the solo run. The canvas used the full viewport, the panels were sized sensibly, and the interface had a consistent visual identity that tracked the design direction from the spec. Some of the clunkiness I'd seen in the solo run did remain—the workflow still didn't make it clear that you should build sprites and entities before trying to populate a level, and I had to figure that out by poking around. This read as a gap in the base model's product intuition rather than something the harness was designed to address, though it did suggest a place where targeted iteration inside the harness could help to further improve output quality.
+
+Working through the editors, the new run's advantages over solo became more apparent. The sprite editor was richer and more fully featured, with cleaner tool palettes, a better color picker, and more usable zoom controls.
+
+Because I'd asked the planner to weave AI features into its specs, the app also came with a built-in Claude integration that let me generate different parts of the game through prompting. This significantly sped up the workflow.
+
+The biggest difference was in play mode. I was actually able to move my entity and play the game. The physics had some rough edges—my character jumped onto a platform but ended up overlapping with it, which felt intuitively wrong—but the core thing worked, which the solo run did not manage.
+
+Getting the evaluator to perform at this level took work. Out of the box, Claude is a poor QA agent. In early runs, I watched it identify legitimate issues, then talk itself into deciding they weren't a big deal and approve the work anyway. It also tended to test superficially, rather than probing edge cases, so more subtle bugs often slipped through. The tuning loop was to read the evaluator's logs, find examples where its judgment diverged from mine, and update the QAs prompt to solve for those issues. It took several rounds of this development loop before the evaluator was grading in a way that I found reasonable. Even then, the harness output showed the limits of the model's QAing capabilities: small layout issues, interactions that felt unintuitive in places, and undiscovered bugs in more deeply nested features that the evaluator hadn't exercised thoroughly.
 
 #### Iterating on the harness
 
-The first set of harness results was encouraging, but it was also bulky, slow, and expensive. Every component in a harness encodes an assumption about what the model can't do on its own, and those assumptions are worth stress testing—both because they may be incorrect, and because they can quickly go stale as models improve. Our blog post [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) frames it as: "find the simplest solution possible, and only increase complexity when needed."
+The first set of harness results was encouraging, but it was also bulky, slow, and expensive. The logical next step was to find ways to simplify the harness without degrading its performance. This was partly common sense and partly a function of a more general principle: every component in a harness encodes an assumption about what the model can't do on its own, and those assumptions are worth stress testing, both because they may be incorrect, and because they can quickly go stale as models improve. Our blog post [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) frames the underlying idea as "find the simplest solution possible, and only increase complexity when needed," and it's a pattern that shows up consistently for anyone maintaining an agent harness.
 
-With the release of Opus 4.6—which "plans more carefully, sustains agentic tasks for longer, can operate more reliably in larger codebases, and has better code review and debugging skills to catch its own mistakes"—I moved to a more methodical approach, removing one component at a time and reviewing what impact it had.
+In my first attempt to simplify, I cut the harness back radically and tried a few creative new ideas, but I wasn't able to replicate the performance of the original. It also became difficult to tell which pieces of the harness design were actually load-bearing, and in what ways. Based on that experience, I moved to a more methodical approach, removing one component at a time and reviewing what impact it had on the final result.
 
-**Removing the sprint construct**: I removed the sprint structure entirely. Given the improvements in Opus 4.6, the model could natively handle decomposition without this scaffolding. I kept both the planner and evaluator, and moved the evaluator to a single pass at the end of the run rather than grading per sprint.
+As I was going through these iteration cycles, we also released Opus 4.6, which provided further motivation to reduce harness complexity. There was good reason to expect 4.6 would need less scaffolding than 4.5 did. From our [launch blog](https://www.anthropic.com/news/claude-opus-4-6): "[Opus 4.6] plans more carefully, sustains agentic tasks for longer, can operate more reliably in larger codebases, and has better code review and debugging skills to catch its own mistakes." It also improved substantially on long-context retrieval. These were all capabilities the harness had been built to supplement.
 
-The practical implication: the evaluator is not a fixed yes-or-no decision. It is worth the cost when the task sits beyond what the current model does reliably solo.
+**Removing the sprint construct**: I started by removing the sprint construct entirely. The sprint structure had helped to decompose work into chunks for the model to work coherently. Given the improvements in Opus 4.6, there was good reason to believe that the model could natively handle the job without this sort of decomposition.
+
+I kept both the planner and evaluator, as each continued to add obvious value. Without the planner, the generator under-scoped: given the raw prompt, it would start building without first speccing its work, and end up creating a less feature-rich application than the planner did.
+
+With the sprint construct removed, I moved the evaluator to a single pass at the end of the run rather than grading per sprint. Since the model was much more capable, it changed how load-bearing the evaluator was for certain runs, with its usefulness depending on where the task sat relative to what the model could do reliably on its own. On 4.5, that boundary was close: our builds were at the edge of what the generator could do well solo, and the evaluator caught meaningful issues across the build. On 4.6, the model's raw capability increased, so the boundary moved outward. Tasks that used to need the evaluator's check to be implemented coherently were now often within what the generator handled well on its own, and for tasks within that boundary, the evaluator became unnecessary overhead. But for the parts of the build that were still at the edge of the generator's capabilities, the evaluator continued to give real lift.
+
+The practical implication is that the evaluator is not a fixed yes-or-no decision. It is worth the cost when the task sits beyond what the current model does reliably solo.
+
+Alongside the structural simplification, I also added prompting to improve how the harness built AI features into each app, specifically getting the generator to build a proper agent that could drive the app's own functionality through tools. That took real iteration, since the relevant knowledge is recent enough that Claude's training data covers it thinly. But with enough tuning, the generator was building agents correctly.
 
 #### Results from the updated harness
 
-To test the updated harness, I used this prompt to generate a Digital Audio Workstation (DAW):
+To put the updated harness to the test, I used the following prompt to generate a Digital Audio Workstation (DAW), a music production program for composing, recording, and mixing songs:
 
 > Build a fully featured DAW in the browser using the Web Audio API.
+
+The run was still lengthy and expensive, at about 4 hours and $124 in token costs.
 
 | Agent & Phase | Duration | Cost |
 |---------------|----------|------|
@@ -134,141 +285,29 @@ To test the updated harness, I used this prompt to generate a Digital Audio Work
 | QA (Round 3) | 9.6 min | $4.06 |
 | **Total V2 Harness** | **3 hr 50 min** | **$124.70** |
 
-The QA agent still caught real gaps. Its first-round feedback noted that several core DAW features were display-only without interactive depth. After iterating, the final app had all the core pieces of a functional music production program: a working arrangement view, mixer, and transport running in the browser—with an integrated agent that could compose a short song snippet entirely through prompting.
+Most of the time went to the builder, which ran coherently for over two hours without the sprint decomposition that Opus 4.5 had needed.
+
+As with the previous harness, the planner expanded the one-line prompt into a full spec. From the logs, I could see the generator model did a good job planning the app and the agent design, wiring the agent up, and testing it before handing off to QA.
+
+That being said, the QA agent still caught real gaps. In its first-round feedback, it noted:
+
+> This is a strong app with excellent design fidelity, solid AI agent, and good backend. The main failure point is Feature Completeness — while the app looks impressive and the AI integration works well, several core DAW features are display-only without interactive depth: clips can't be dragged/moved on the timeline, there are no instrument UI panels (synth knobs, drum pads), and no visual effect editors (EQ curves, compressor meters). These aren't edge cases — they're the core interactions that make a DAW usable, and the spec explicitly calls for them.
+
+In its second round feedback, it again caught several functionality gaps:
+
+> Remaining gaps:
+> - Audio recording is still stub-only (button toggles but no mic capture)
+> - Clip resize by edge drag and clip split not implemented
+> - Effect visualizations are numeric sliders, not graphical (no EQ curve)
+
+The generator was still liable to miss details or stub features when left to its own devices, and the QA still added value in catching those last mile issues for the generator to fix.
+
+The final app had all the core pieces of a functional music production program: a working arrangement view, mixer, and transport running in the browser. Beyond that, I was able to put together a short song snippet entirely through prompting: the agent set the tempo and key, laid down a melody, built a drum track, adjusted mixer levels, and added reverb. The core primitives for song composition were present, and the agent could drive them autonomously, using tools to create a simple production from end to end.
 
 ### What comes next
 
 As models continue to improve, we can roughly expect them to be capable of working for longer, and on more complex tasks. In some cases, that will mean the scaffold surrounding the model matters less over time, and developers can wait for the next model and see certain problems solve themselves. On the other hand, the better the models get, the more space there is to develop harnesses that can achieve complex tasks beyond what the model can do at baseline.
 
-A few lessons worth carrying forward:
+With this in mind, there are a few lessons from this work worth carrying forward. It is always good practice to experiment with the model you're building against, read its traces on realistic problems, and tune its performance to achieve your desired outcomes. When working on more complex tasks, there is sometimes headroom from decomposing the task and applying specialized agents to each aspect of the problem. And when a new model lands, it is generally good practice to re-examine a harness, stripping away pieces that are no longer load-bearing to performance and adding new pieces to achieve greater capability that may not have been possible before.
 
-1. Always experiment with the model you're building against, read its traces on realistic problems, and tune its performance to achieve your desired outcomes.
-2. When working on more complex tasks, there is sometimes headroom from decomposing the task and applying specialized agents to each aspect of the problem.
-3. When a new model lands, re-examine the harness, stripping away pieces that are no longer load-bearing and adding new pieces for greater capability.
-
-My conviction is that the space of interesting harness combinations doesn't shrink as models improve. Instead, it moves, and the interesting work for AI engineers is to keep finding the next novel combination.
-
----
-
-## 中文翻译
-
-作者：Prithvi Rajasekaran，Anthropic Labs 团队成员
-
-在过去几个月里，我一直在研究两个相互关联的问题：让 Claude 产出高质量的前端设计，以及让它在无需人工干预的情况下构建完整的应用程序。这项工作起源于我们早期在[前端设计技能](https://github.com/anthropics/claude-code/blob/main/plugins/frontend-design/skills/frontend-design/SKILL.md)和[长时运行编码 Agent Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 上的探索——通过提示工程和 Harness 设计，我和同事们将 Claude 的表现大幅提升，但两者最终都触碰到了天花板。
-
-为了突破瓶颈，我开始寻找在两个截然不同领域都能奏效的 AI 工程新方法：一个领域依赖主观审美，另一个领域依赖可验证的正确性与可用性。受[生成对抗网络（GAN）](https://en.wikipedia.org/wiki/Generative_adversarial_network)的启发，我设计了一个包含生成器 Agent 和评估器 Agent 的多智能体结构。要让评估器可靠地、有品味地给输出打分，首先需要开发一套标准，将"这个设计好吗？"这类主观判断转化为具体的、可量化的维度。
-
-随后，我将这些技术应用到长时运行的自主编程场景，延续了早期 Harness 工作中的两个经验：将构建任务拆解为可处理的小块，以及使用结构化的工件在会话之间传递上下文。最终成果是一个三 Agent 架构——规划器、生成器和评估器——能够在数小时的自主编程会话中产出丰富的全栈应用。
-
-### 为什么朴素实现总是失效
-
-我们此前已证明，Harness 设计对长时间运行的 Agentic 编程效果有重大影响。在早期[实验](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)中，我们使用初始化 Agent 将产品规格分解为任务列表，编程 Agent 逐一实现各功能，并在会话间传递工件以保留上下文。更广泛的开发者社区也汇聚了类似洞见，例如"Ralph Wiggum"方法使用 hooks 或脚本让 Agent 保持持续迭代循环。
-
-但一些问题依然顽固存在。对于更复杂的任务，Agent 仍然容易随着时间推移而"跑偏"。在拆解这个问题时，我们观察到两种常见的失效模式。
-
-**第一：上下文窗口填满时模型会失去连贯性**（参见我们关于[上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)的文章）。部分模型还会表现出"上下文焦虑"——当它们认为自己接近上下文上限时，会提前草草收工。**上下文重置**——完全清空上下文窗口并启动新的 Agent，配合携带前一个 Agent 状态和后续步骤的结构化交接——可以同时解决这两个问题。
-
-这与**压缩（compaction）**不同：压缩是将对话前半段就地摘要，让同一个 Agent 在缩短的历史上继续工作。压缩保留了连续性，但无法给 Agent 一张白纸，上下文焦虑仍可能持续。重置提供了白纸，代价是交接工件必须包含足够的状态，让下一个 Agent 能顺畅接手。在早期测试中，我们发现 Claude Sonnet 4.5 的上下文焦虑足够严重，仅靠压缩无法支撑强劲的长任务表现，因此上下文重置成为 Harness 设计的关键。这解决了核心问题，但也为每次 Harness 运行带来了编排复杂度、Token 开销和延迟。
-
-**第二：自我评估问题**——这是我们此前未曾专门处理的。当 Agent 被要求评估自己的输出时，它们往往会自信地给出好评——即便在人类观察者看来，质量明显一般。这个问题在设计等主观任务中尤为突出，因为没有等效于软件测试的二元验证。一个布局是精致还是平庸，是一种判断，而 Agent 在给自己的工作打分时会系统性地偏向正面。
-
-即便在有可验证结果的任务中，Agent 有时仍会表现出影响完成质量的糟糕判断。**将执行工作的 Agent 与评判工作的 Agent 分离**，被证明是解决这个问题的强力手段。分离本身并不能立即消除这种宽松倾向——评估器仍然是一个倾向于对 LLM 生成输出宽松的 LLM。但将一个独立的评估器调教得更加挑剔，远比让生成器批判自己的工作更容易实现。一旦外部反馈存在，生成器就有了具体的改进目标。
-
-### 前端设计：让主观质量可量化
-
-我从前端设计入手实验，因为自我评估问题在这里最为明显。在没有任何干预的情况下，Claude 通常倾向于生成安全、可预期的布局——技术上可用，但视觉上平淡无奇。
-
-两个洞见塑造了我为前端设计构建的 Harness。第一，虽然审美不能完全化约为分数——个人品味始终各异——但可以通过编码了设计原则和偏好的评分标准来提升。"这个设计漂亮吗？"很难一致回答，但"这个设计符合我们的好设计原则吗？"给了 Claude 具体的评判依据。第二，将前端生成与前端评分分离，可以创造一个驱动生成器输出更强成果的反馈循环。
-
-基于此，我写了四个评分维度，同时纳入生成器和评估器 Agent 的提示中：
-
-- **设计质量**：设计是否感觉是一个连贯的整体，而非零件的拼凑？强劲的设计意味着颜色、排版、布局、图像等细节共同构建出独特的氛围和身份。
-- **原创性**：是否有定制化决策的痕迹，还是模板布局、库默认值和 AI 生成模式的堆砌？人类设计师应该能认出刻意的创意选择。未修改的库存组件——或 AI 生成的典型特征，如白卡上的紫色渐变——在这里会失分。
-- **工艺**：技术执行：排版层级、间距一致性、色彩和谐、对比度。这是能力检验而非创意检验。大多数合理实现默认会在这里表现良好；失败意味着基本功的缺失。
-- **功能性**：独立于美学的可用性。用户能否理解界面的功能、找到主要操作、无需猜测地完成任务？
-
-我将设计质量和原创性的权重置于工艺和功能性之上。Claude 默认在工艺和功能性上表现良好，所需技术能力对模型来说自然而然。但在设计和原创性上，Claude 的输出往往充其量是平淡的。这些标准明确惩罚了高度通用的"AI 糊弄"模式，通过加重设计和原创性的权重，推动模型承担更多审美风险。
-
-我使用带有详细评分分解的少样本示例来校准评估器，确保评估器的判断与我的偏好一致，并减少迭代中的分数漂移。
-
-我在 [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) 上构建了这个循环，编排逻辑保持简洁。生成器 Agent 首先根据用户提示创建 HTML/CSS/JS 前端；评估器获得了 Playwright MCP，能在对实时页面进行截图并仔细研究后，为每个标准打分并撰写详细评语。反馈作为下一轮迭代的输入流回生成器。每次生成运行 5 到 15 轮迭代，每轮迭代通常推动生成器朝更具辨识度的方向发展。由于评估器在主动导航页面而非对静态截图打分，每个周期需要真实的时间——完整运行可长达四小时。
-
-迭代过程中有一个令人印象深刻的案例：我提示模型创建一个荷兰艺术博物馆的网站。到第九轮迭代时，它产出了一个精致的深色主题登陆页。然后，在第十轮，它彻底推翻了原有方案，将网站重新构想为一个空间体验：用 CSS 透视渲染的棋盘格地板的 3D 房间，艺术品随意悬挂在墙上，以门道而非滚动或点击在画廊间导航。这是我在单次生成中从未见过的创意飞跃。
-
-### 扩展到全栈编程
-
-带着这些发现，我将 GAN 启发的模式应用到全栈开发中。生成器-评估器循环自然映射到软件开发生命周期，代码审查和 QA 扮演着与设计评估器相同的结构角色。
-
-#### 架构设计
-
-在早期的[长时运行 Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 中，我们通过初始化 Agent、逐功能工作的编程 Agent 以及会话间的上下文重置，解决了连贯的多会话编程问题。Opus 4.5 在很大程度上自行消除了"上下文焦虑"行为，所以我能够完全去掉这个 Harness 中的上下文重置，Agent 在整个构建过程中作为一个连续会话运行，由 Claude Agent SDK 的自动压缩处理上下文增长。
-
-三 Agent 系统包含以下角色：
-
-**规划器（Planner）**：接受 1-4 句话的简短提示，将其展开为完整的产品规格。我提示它在范围上保持雄心，专注于产品背景和高层技术设计，而非细粒度的技术实现——避免规划器在早期指定错误的细节，导致错误级联进入下游实现。同时要求规划器寻找将 AI 功能编织进产品规格的机会。
-
-**生成器（Generator）**：延续早期 Harness 的逐功能方法，指示生成器以冲刺（sprint）为单位工作，逐一从规格中选取功能实现。每个冲刺使用 React、Vite、FastAPI 和 SQLite（后改为 PostgreSQL）技术栈，生成器被要求在每个冲刺结束时自我评估工作，然后交接给 QA。
-
-**评估器（Evaluator）**：使用 Playwright MCP 像用户一样点击运行中的应用程序，测试 UI 功能、API 端点和数据库状态。然后对照发现的错误和一套仿照前端实验的标准（适配为覆盖产品深度、功能性、视觉设计和代码质量）对每个冲刺打分。每个标准都有硬性门槛，任何一项低于门槛，冲刺失败，生成器会收到关于哪里出了问题的详细反馈。
-
-每个冲刺前，生成器和评估器协商一份**冲刺契约**：在任何代码编写之前，就该工作块的"完成"标准达成一致。这弥合了用户故事与可测试实现之间的差距。通信通过文件处理：一个 Agent 写文件，另一个读取并在该文件内或用新文件回应。这在不过早指定实现细节的情况下，使工作忠实于规格。
-
-#### 运行 Harness
-
-使用以下提示生成复古游戏制作工具：
-
-> 创建一个 2D 复古游戏制作器，功能包括关卡编辑器、精灵编辑器、实体行为和可玩的测试模式。
-
-| Harness | 时长 | 费用 |
-|---------|------|------|
-| 单 Agent | 20 分钟 | $9 |
-| 完整 Harness | 6 小时 | $200 |
-
-Harness 贵了 20 倍以上，但输出质量差距立竿见影。单 Agent 版本的核心游戏玩法完全损坏——实体能显示但对输入没有任何响应；而 Harness 版本从同一句提示出发，扩展出了 16 个功能、横跨 10 个冲刺的规格，核心游戏真正可以运行。
-
-让评估器达到这个水平需要大量调教。开箱即用的 Claude 是个糟糕的 QA Agent——早期运行中，它会识别出真实问题，然后说服自己这没什么大不了然后批准工作。调教循环是：阅读评估器日志，找到它的判断与我的判断偏离的例子，更新 QA 提示来解决这些问题。经过几轮这样的开发循环，评估器的评分才达到我认为合理的水准。
-
-#### 迭代优化 Harness
-
-Harness 的首批结果令人鼓舞，但也臃肿、缓慢且昂贵。Harness 中的每个组件都编码了一个关于模型自身无法完成某事的假设，而这些假设值得压力测试——因为它们可能是错误的，也可能随模型提升而迅速过时。《构建有效 Agent》中的核心原则是："找到最简单的可行方案，只在必要时才增加复杂度。"
-
-随着 Opus 4.6 的发布（"更谨慎地规划、更持久地维持 Agentic 任务、在更大型代码库中更可靠地运行、更好地审查和调试代码"），我采用了更系统的方法：每次只移除一个组件，查看其对最终结果的影响。
-
-**移除冲刺结构**：鉴于 Opus 4.6 的改进，模型可以原生处理任务分解，无需这种脚手架。我保留了规划器和评估器，将评估器改为在整次运行结束时单次评分，而非逐冲刺评分。
-
-实际含义是：**评估器不是一个固定的是/否决策，它在任务超出当前模型独立可靠完成的范围时，才值得付出成本**。
-
-#### 更新 Harness 的结果
-
-测试更新后的 Harness，使用以下提示生成数字音频工作站（DAW）：
-
-> 使用 Web Audio API 在浏览器中构建一个功能完整的 DAW。
-
-| Agent 与阶段 | 时长 | 费用 |
-|--------------|------|------|
-| 规划器 | 4.7 分钟 | $0.46 |
-| 构建（第 1 轮） | 2 小时 7 分钟 | $71.08 |
-| QA（第 1 轮） | 8.8 分钟 | $3.24 |
-| 构建（第 2 轮） | 1 小时 2 分钟 | $36.89 |
-| QA（第 2 轮） | 6.8 分钟 | $3.09 |
-| 构建（第 3 轮） | 10.9 分钟 | $5.88 |
-| QA（第 3 轮） | 9.6 分钟 | $4.06 |
-| **V2 Harness 合计** | **3 小时 50 分钟** | **$124.70** |
-
-QA Agent 仍然捕获了真实的差距——第一轮反馈指出若干核心 DAW 功能只有界面没有交互深度。经过迭代，最终应用具备了功能完整的音乐制作程序所需的所有核心部件：在浏览器中运行的编排视图、混音器和传输控制，集成 Agent 完全通过提示就能创作一段短曲。
-
-### 展望未来
-
-随着模型持续进步，我们大致可以预期它们能处理更长时间、更复杂的任务。在某些情况下，这意味着围绕模型的脚手架随时间变得不那么重要，开发者可以等待下一个模型让某些问题自行解决。另一方面，模型越好，开发能超越模型基线能力的复杂 Harness 的空间也越大。
-
-几个值得铭记的经验：
-
-1. **始终针对正在构建的模型进行实验**，阅读其在真实问题上的运行轨迹，调优以达到期望的结果。
-2. **面对更复杂的任务时**，有时可以通过将任务分解并对问题的每个方面应用专项 Agent 来获得提升空间。
-3. **每当新模型上线时，重新审视 Harness**——剥离那些不再承重的组件，增加新组件以达到此前不可能的更大能力。
-
-我的信念是：**随着模型改进，有趣的 Harness 组合空间并不会缩小，而是会移动。对 AI 工程师来说，有趣的工作就是持续寻找下一个新颖的组合。**
-
----
-
-*原文链接：https://www.anthropic.com/engineering/harness-design-long-running-apps*
+From this work, my conviction is that the space of interesting harness combinations doesn't shrink as models improve. Instead, it moves, and the interesting work for AI engineers is to keep finding the next novel combination.
