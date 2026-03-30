@@ -66,6 +66,10 @@ tags:
 
 有一个案例令人印象深刻：我提示模型为一家荷兰艺术博物馆创建网站。到第九轮，它产出了一个精致的深色主题落地页，视觉上无懈可击，但仍在我预期的范围之内。第十轮，它彻底推翻了既有方案，将网站重新构想为一种空间体验：用 CSS 透视渲染的棋盘地板三维房间，画作自由悬挂在墙上，以门洞而非滚动或点击的方式在画廊间穿行。这种创意跳跃，是我在单次生成中从未见过的。
 
+<video controls style="width:100%;max-width:800px">
+  <source src="https://cdn.sanity.io/files/4zrzovbb/website/9877febd34432f7f582aecd0023b951223605c6a.mp4" type="video/mp4">
+</video>
+
 ### 向全栈编程延伸
 
 带着这些发现，我将 GAN 启发的模式移植到了全栈开发中。生成器-评估器的循环与软件开发生命周期天然契合，代码审查和 QA 扮演的结构性角色与设计评估器如出一辙。
@@ -101,7 +105,34 @@ tags:
 
 费用超出 20 倍，但输出质量的差距一眼就看出来了。
 
-单智能体版本的核心玩法彻底坏了——实体能显示出来，但对任何输入毫无反应，实体定义和游戏运行时之间的连线断了，表面上看不出任何提示。Harness 版本从同一句提示出发，规划器将其扩展为横跨十个冲刺的 16 个功能规格，涵盖了精灵动画系统、行为模板、音效与音乐、AI 辅助的精灵生成器和关卡设计师，以及带可分享链接的游戏导出功能。整体完成度更高，最关键的是——游戏真的能玩了。
+单智能体版本的核心玩法彻底坏了——实体能显示出来，但对任何输入毫无反应，实体定义和游戏运行时之间的连线断了，表面上看不出任何提示。
+
+**单智能体版本截图：**
+
+![单智能体版：应用初始界面](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F23c98f1d7ae720bfb39190d50e0706c03b177ad8-1999x1320.png&w=3840&q=75)
+*单智能体版：打开应用时的初始界面*
+
+![单智能体版：精灵编辑器](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F24472c85629a6c82a092f25def4a659042be1f7c-1999x1010.png&w=3840&q=75)
+*单智能体版：精灵编辑器*
+
+![单智能体版：游戏无法运行](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F79217dbfce3f31172eb7fd4deee5449023c9b2ac-1999x757.png&w=3840&q=75)
+*单智能体版：尝试运行关卡，但游戏完全坏掉*
+
+Harness 版本从同一句提示出发，规划器将其扩展为横跨十个冲刺的 16 个功能规格，涵盖了精灵动画系统、行为模板、音效与音乐、AI 辅助的精灵生成器和关卡设计师，以及带可分享链接的游戏导出功能。整体完成度更高，最关键的是——游戏真的能玩了。
+
+**完整 Harness 版本截图：**
+
+![完整 Harness 版：初始界面](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fa8bef95425966495629095a5cb38bde4a8b13558-1999x997.png&w=3840&q=75)
+*完整 Harness 版：新建游戏时的初始界面，整体视觉风格更统一*
+
+![完整 Harness 版：精灵编辑器](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fc05aa3ef8daaf0ef3d0dba66d6480ab753e9cbaa-1999x1007.png&w=3840&q=75)
+*完整 Harness 版：精灵编辑器更丰富，工具栏更清晰*
+
+![完整 Harness 版：AI 辅助关卡设计](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F287b35f4683ecb77ac6a8d66bf2b3ed5956d1db9-1999x1008.png&w=3840&q=75)
+*完整 Harness 版：通过内置 AI 功能生成关卡*
+
+![完整 Harness 版：游戏可以正常运行](https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Ff2953550e51957a0a49a3792a0df3bcfed0fde48-1994x1654.png&w=3840&q=75)
+*完整 Harness 版：游戏可以正常运行了*
 
 让评估器达到这个水准需要下大力气调教。开箱即用的 Claude 是个糟糕的 QA 智能体。早期运行里，它能识别出真实的问题，然后自己说服自己"这也没什么大不了"，转头就批准了。它还倾向于浅尝辄止，不深挖边界情况，导致更隐蔽的 bug 往往漏网。调教的方法是：读评估器的日志，找出它的判断和我的判断出现偏差的例子，更新 QA 提示来纠正。经过几轮这样的循环，评估器的打分才到了我能接受的水准。
 
@@ -151,7 +182,11 @@ QA 智能体依然揪出了真实的问题。第一轮反馈写道：
 > - 片段边缘拖拽调整大小和片段分割未实现
 > - 效果可视化是数字滑块，而非图形化（无均衡器曲线）
 
-经过几轮迭代，最终产出的应用具备了一个可用音乐制作程序所需的全部核心部件：在浏览器里跑通的编排视图、混音器和传输控件，以及一个可以完全通过提示驱动的集成智能体——定拍子、铺旋律、建鼓轨、调混音、加混响，从头到尾不用手动操作。
+经过几轮迭代，最终产出的应用具备了一个可用音乐制作程序所需的全部核心部件：在浏览器里跑通的编排视图、混音器和传输控件，以及一个可以完全通过提示驱动的集成智能体——定拍子、铺旋律、建鼓轨、调混音、加混响，从头到尾不用手动操作。下面是 DAW 的演示视频：
+
+<video controls style="width:100%;max-width:800px">
+  <source src="https://cdn.sanity.io/files/4zrzovbb/website/555910f9adb3938734940224e7a6f4c7cbbbd8f2.mp4" type="video/mp4">
+</video>
 
 ### 往后的路
 
