@@ -13,7 +13,13 @@ tags:
 
 这篇文章来自 Anthropic 工程博客，原文发布于 2026 年 3 月 24 日，作者 Prithvi Rajasekaran 是 Anthropic Labs 团队成员。
 
-先解释一下标题里的核心概念：**Harness**（Agent Harness）。在 AI Agent 的语境里，它指的是围绕语言模型搭建的那一层软件基础设施——工具调用、context 管理、多 agent 编排、任务分解、会话间的状态传递，凡是"模型本身以外的一切"，都属于 Harness 的范畴。Anthropic 工程博客对它有个很精准的说法：Harness 是"管理 context 完整生命周期的架构系统——从意图捕获、规格制定、编译、执行、验证到持久化"。简单说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
+玩过 AI 的人大概都走过这条路。
+
+2023、2024 年，大家在学怎么「问」模型——Chain-of-Thought、Few-Shot、角色扮演，核心是把一句话说得让 AI 听懂，这是 Prompt 工程的时代。2025 年，Andrej Karpathy 一句话点醒了很多人：光会写 prompt 不够，你得设计模型「看到什么」。RAG、MCP、Memory、工具调用……重点是把整个 context 窗口当成系统来设计，这是 Context 工程的时代。
+
+到了 2026 年，问题又往前推了一步：模型已经足够强，context 也设计得够好，但要让它在无人干预的情况下独立跑几个小时、产出一个完整的应用——还差点什么？这就是 **Harness 工程**的舞台，也是这篇文章的主题。
+
+Harness（Agent Harness）指的是围绕语言模型搭建的那一层软件基础设施——工具调用、context 管理、多 agent 编排、任务分解、会话间的状态传递，凡是"模型本身以外的一切"，都属于 Harness 的范畴。简单说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
 
 本文记录了作者如何从前端设计出发，受生成对抗网络（GAN）启发，构建出"生成器 + 评估器"的双 agent 结构，再将其扩展为包含 Planner、Generator、Evaluator 的完整系统，最终实现数小时无人介入的全栈应用自主开发。文章还重点讨论了随着模型能力提升，Harness 应该如何跟着精简——对正在做 AI Agent 工程的开发者来说，很有参考价值。原文链接：[Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)。
 
