@@ -13,7 +13,7 @@ tags:
 
 这篇文章来自 Anthropic 工程博客，原文发布于 2026 年 3 月 24 日，作者 Prithvi Rajasekaran 是 Anthropic Labs 团队成员。
 
-在读正文之前，先解释一下标题里的核心概念：**Harness**（Agent Harness）。在 AI Agent 的语境里，它指的是围绕语言模型构建的那一层软件基础设施——工具调用、上下文管理、多agent编排、任务分解、会话间的状态传递，凡是"除模型本身之外的一切"，都属于 Harness 的范畴。Anthropic 工程博客对它有一个相当精准的表述：Harness 是"管理上下文完整生命周期的架构系统——从意图捕获、规格制定、编译、执行、验证到持久化"。换句话说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
+在读正文之前，先解释一下标题里的核心概念：**Harness**（Agent Harness）。在 AI Agent 的语境里，它指的是围绕语言模型构建的那一层软件基础设施——工具调用、context管理、多agent编排、任务分解、会话间的状态传递，凡是"除模型本身之外的一切"，都属于 Harness 的范畴。Anthropic 工程博客对它有一个相当精准的表述：Harness 是"管理context完整生命周期的架构系统——从意图捕获、规格制定、编译、执行、验证到持久化"。换句话说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
 
 本文记录了作者如何从前端设计出发，受生成对抗网络（GAN）启发，构建出一套"生成器 + 评估器"的双agent结构，再将其扩展为包含规划器、生成器、评估器的完整系统，实现了数小时无人介入的全栈应用自主开发。文章还着重讨论了随着模型能力提升，Harness 设计应如何随之精简演化——对当下从事 AI Agent 工程的开发者颇具参考价值。原文链接：[Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)。
 
@@ -23,17 +23,17 @@ tags:
 
 为了突破，我开始寻找在两个差异悬殊的领域都能生效的 AI 工程新路径：一个领域靠主观审美，另一个靠可验证的正确性与可用性。受[生成对抗网络（GAN）](https://en.wikipedia.org/wiki/Generative_adversarial_network)的启发，我设计了一套包含生成器agent与评估器agent的多agent结构。要让评估器打分既可靠又有品味，前提是先建立一套标准，将"这个设计好看吗"这类主观判断转化为具体可量化的维度。
 
-随后，我把这些思路移植到长时运行的自主coding中，沿用了早期 Harness 工作的两个经验：将构建任务拆解为可处理的小块，以及用结构化工件在会话间传递上下文。最终落地成一套三agent架构——规划器、生成器、评估器——能在数小时的自主coding会话中产出完整的全栈应用。
+随后，我把这些思路移植到长时运行的自主coding中，沿用了早期 Harness 工作的两个经验：将构建任务拆解为可处理的小块，以及用结构化工件在会话间传递context。最终落地成一套三agent架构——规划器、生成器、评估器——能在数小时的自主coding会话中产出完整的全栈应用。
 
 ### 为什么简单实现总是失效
 
-我们此前已证明，Harness 设计对长时间运行的 Agentic coding效果影响显著。在早期[实验](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)中，我们用一个初始化agent将产品规格拆解为任务列表，coding agent逐功能实现，并在会话间传递工件以保留上下文。更广泛的开发者社区也形成了类似共识，比如 ["Ralph Wiggum"](https://ghuntley.com/ralph/) 方法用 hooks 或脚本让agent保持持续迭代。
+我们此前已证明，Harness 设计对长时间运行的 Agentic coding效果影响显著。在早期[实验](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)中，我们用一个初始化agent将产品规格拆解为任务列表，coding agent逐功能实现，并在会话间传递工件以保留context。更广泛的开发者社区也形成了类似共识，比如 ["Ralph Wiggum"](https://ghuntley.com/ralph/) 方法用 hooks 或脚本让agent保持持续迭代。
 
 但有些问题始终顽固。面对更复杂的任务，agent仍然容易随着时间推移偏离轨道。深入拆解后，我们归纳出两类常见的失效模式。
 
-**其一是上下文窗口填满后模型的连贯性下降**（详见我们关于[上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)的文章）。部分模型还会出现"上下文焦虑"——当它们判断自己快到上下文上限时，会提前草草收场。**上下文重置**——完全清空上下文窗口、启动新agent，同时配合一份携带前一个agent状态和后续步骤的结构化交接文件——可以同时解决这两个问题。
+**其一是context窗口填满后模型的连贯性下降**（详见我们关于[context 工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)的文章）。部分模型还会出现"context焦虑"——当它们判断自己快到context上限时，会提前草草收场。**context重置**——完全清空context窗口、启动新agent，同时配合一份携带前一个agent状态和后续步骤的结构化交接文件——可以同时解决这两个问题。
 
-这与压缩（compaction）的思路不同：压缩是将对话前段就地摘要，让同一个agent在压缩后的历史上继续工作。压缩保留了延续性，但给不了agent一张白纸，上下文焦虑依然可能存在。重置能提供白纸，代价是交接文件必须携带足够的状态，让下一个agent能顺畅接手。早期测试中，Claude Sonnet 4.5 的上下文焦虑严重到单靠压缩无法支撑长任务表现，上下文重置因此成为 Harness 设计的关键。这虽解决了核心问题，但也为每次运行带来了编排复杂度、额外的 Token 开销和延迟。
+这与压缩（compaction）的思路不同：压缩是将对话前段就地摘要，让同一个agent在压缩后的历史上继续工作。压缩保留了延续性，但给不了agent一张白纸，context焦虑依然可能存在。重置能提供白纸，代价是交接文件必须携带足够的状态，让下一个agent能顺畅接手。早期测试中，Claude Sonnet 4.5 的context焦虑严重到单靠压缩无法支撑长任务表现，context重置因此成为 Harness 设计的关键。这虽解决了核心问题，但也为每次运行带来了编排复杂度、额外的 Token 开销和延迟。
 
 **其二是自我评估问题**——这是我们此前未专门处理过的。让agent评估自己的输出时，它往往会信心满满地给出好评，即便在人类看来质量明显平庸。这个问题在设计等主观任务中尤为突出，因为没有像软件测试那样的二元验证。一个布局是精致还是普通，本质上是一种判断，而agent给自己打分时会系统性地偏向正面。
 
@@ -76,7 +76,7 @@ tags:
 
 #### 架构设计
 
-在早期的[长时运行 Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 中，我们通过初始化agent、逐功能推进的coding agent以及会话间的上下文重置，解决了多会话coding的连贯性问题。Opus 4.5 在很大程度上自行消除了上下文焦虑，因此这套新的 Harness 彻底去掉了上下文重置——agent在整个构建过程中作为一个连续会话运行，上下文增长由 Claude Agent SDK 的自动压缩处理。
+在早期的[长时运行 Harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) 中，我们通过初始化agent、逐功能推进的coding agent以及会话间的context重置，解决了多会话coding的连贯性问题。Opus 4.5 在很大程度上自行消除了context焦虑，因此这套新的 Harness 彻底去掉了context重置——agent在整个构建过程中作为一个连续会话运行，context增长由 Claude Agent SDK 的自动压缩处理。
 
 系统包含三个agent，各自对应我在早期实验中发现的不同问题：
 
@@ -148,7 +148,7 @@ Harness 版本从同一句提示出发，规划器将其扩展为横跨十个冲
 
 第一批结果令人鼓舞，但这套 Harness 也太笨重、太慢、太贵。Harness 里的每个组件，背后都是一个关于"模型自己做不到某件事"的假设，而这些假设值得持续检验——因为它们本来就可能是错的，而且随着模型进步很快就会过时。我们在[《构建有效 Agent》](https://www.anthropic.com/research/building-effective-agents)中提出的核心原则正是："找到最简单的可行方案，只在必要时才增加复杂度。"
 
-Opus 4.6 发布后（官方表述是"规划更谨慎、Agentic 任务持续时间更长、在大型代码库中运行更可靠、代码审查和调试能力更强"），这给了我进一步精简的理由。我换成了更系统的方式：每次只移除一个组件，观察它对最终结果的影响。
+Opus 4.6 发布后（官方表述是"规划更谨慎、Agentic 任务持续时间更长、在大型codebase中运行更可靠、代码审查和调试能力更强"），这给了我进一步精简的理由。我换成了更系统的方式：每次只移除一个组件，观察它对最终结果的影响。
 
 **去掉冲刺结构**：Opus 4.6 的提升让模型可以自行处理任务分解，不再需要这层脚手架。规划器和评估器保留，评估器改为在整次运行结束后一次性打分，而非逐冲刺评估。
 
