@@ -11,17 +11,15 @@ tags:
   - Engineering
 ---
 
-这篇文章来自 Anthropic 工程博客，原文发布于 2026 年 3 月 24 日，作者 Prithvi Rajasekaran 是 Anthropic Labs 团队成员。
-
-玩过 AI 的人大概都走过这条路。
-
 2023、2024 年，大家在学怎么「问」模型——Chain-of-Thought、Few-Shot、角色扮演，核心是把一句话说得让 AI 听懂，这是 Prompt 工程的时代。2025 年，Andrej Karpathy 一句话点醒了很多人：光会写 prompt 不够，你得设计模型「看到什么」。RAG、MCP、Memory、工具调用……重点是把整个 context 窗口当成系统来设计，这是 Context 工程的时代。
 
 到了 2026 年，问题又往前推了一步：模型已经足够强，context 也设计得够好，但要让它在无人干预的情况下独立跑几个小时、产出一个完整的应用——还差点什么？这就是 **Harness 工程**的舞台，也是这篇文章的主题。
 
 Harness（Agent Harness）指的是围绕语言模型搭建的那一层软件基础设施——工具调用、context 管理、多 agent 编排、任务分解、会话间的状态传递，凡是"模型本身以外的一切"，都属于 Harness 的范畴。简单说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
 
-本文记录了作者如何从前端设计出发，受生成对抗网络（GAN）启发，构建出"生成器 + 评估器"的双 agent 结构，再将其扩展为包含 Planner、Generator、Evaluator 的完整系统，最终实现数小时无人介入的全栈应用自主开发。文章还重点讨论了随着模型能力提升，Harness 应该如何跟着精简——对正在做 AI Agent 工程的开发者来说，很有参考价值。原文链接：[Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)。
+本文记录了作者如何从前端设计出发，受生成对抗网络（GAN）启发，构建出"生成器 + 评估器"的双 agent 结构，再将其扩展为包含 Planner、Generator、Evaluator 的完整系统，最终实现数小时无人介入的全栈应用自主开发。文章还重点讨论了随着模型能力提升，Harness 应该如何跟着精简——对正在做 AI Agent 工程的开发者来说，很有参考价值。
+
+原文来自 Anthropic 工程博客，发布于 2026 年 3 月 24 日，作者 Prithvi Rajasekaran 是 Anthropic Labs 团队成员。原文链接：[Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)。
 
 ---
 
@@ -88,7 +86,7 @@ Harness（Agent Harness）指的是围绕语言模型搭建的那一层软件基
 
 **Planner**：接受 1 到 4 句话的简短提示，将其扩展为完整的产品规格。我要求它在范围上保持野心，聚焦产品背景和高层技术设计，而不是细粒度的实现细节——原因是一旦 Planner 早期把细节定错了，错误就会顺着流程一路传下去。把 agent 约束在交付物上、让它们自己摸索实现路径，这个思路更稳。同时，我也要求 Planner 主动寻找把 AI 功能编进产品规格的机会。
 
-**Generator**：沿用早期 Harness 的逐功能方式，以 sprint 为单位工作，逐一从规格中挑功能实现。技术栈是 React、Vite、FastAPI 和 SQLite（后期换成了 PostgreSQL），每个 sprint 结束时要求 Generator 先自我评估，再交接给 QA，同时用 git 做版本控制。
+**Generator**：沿用早期 Harness 的逐功能方式，以 sprint 为单位工作，逐一从规格中挑功能实现。（译者注：sprint 是敏捷开发里的"冲刺周期"，通常指一到两周内完成一批预定功能的工作节奏，这里借用来表示每一轮的开发任务单元。）技术栈是 React、Vite、FastAPI 和 SQLite（后期换成了 PostgreSQL），每个 sprint 结束时要求 Generator 先自我评估，再交接给 QA，同时用 git 做版本控制。
 
 **Evaluator**：用 Playwright MCP 像真实用户一样点击运行中的应用，测试 UI 功能、API 端点和数据库状态，再对照发现的 bug 和一套参照前端实验改编的评分标准（覆盖产品深度、功能性、视觉设计和代码质量）逐项打分。每个维度都有硬性门槛，任何一项不达线，sprint 失败，Generator 会收到具体的问题反馈。
 
