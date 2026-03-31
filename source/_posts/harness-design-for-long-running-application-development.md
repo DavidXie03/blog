@@ -11,9 +11,9 @@ tags:
   - Engineering
 ---
 
-2023、2024 年，大家在学怎么「问」模型——Chain-of-Thought、Few-Shot、角色扮演，核心是把一句话说得让 AI 听懂，这是 Prompt 工程（Prompt Engineering）的时代。2025 年，Andrej Karpathy 一句话点醒了很多人：光会写 prompt 不够，你得设计模型「看到什么」。RAG、MCP、Memory、工具调用……重点是把整个 context 窗口当成系统来设计，这是 Context 工程（Context Engineering）的时代。
+2023、2024 年，大家在学怎么「问」模型——Chain-of-Thought、Few-Shot、角色扮演，核心是把一句话说得让 AI 听懂，这是 Prompt Engineering 的时代。2025 年，Andrej Karpathy 一句话点醒了很多人：光会写 prompt 不够，你得设计模型「看到什么」。RAG、MCP、Memory、工具调用……重点是把整个 context 窗口当成系统来设计，这是 Context Engineering 的时代。
 
-到了 2026 年，问题又往前推了一步：模型已经足够强，context 也设计得够好，但要让它在无人干预的情况下独立跑几个小时、产出一个完整的应用——还差点什么？这就是 **Harness 工程（Harness Engineering）**的舞台，也是这篇文章的主题。
+到了 2026 年，问题又往前推了一步：模型已经足够强，context 也设计得够好，但要让它在无人干预的情况下独立跑几个小时、产出一个完整的应用——还差点什么？这就是 **Harness Engineering** 的舞台，也是这篇文章的主题。
 
 Harness（Agent Harness）指的是围绕语言模型搭建的那一层软件基础设施——工具调用、context 管理、多 agent 编排、任务分解、会话间的状态传递，凡是"模型本身以外的一切"，都属于 Harness 的范畴。简单说，模型决定能力上限，Harness 决定这个上限能不能被稳定发挥出来。
 
