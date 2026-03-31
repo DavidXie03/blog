@@ -86,6 +86,8 @@ share:
 # Leave it empty if you don't need lightbox
 lightbox: medium_zoom
 
+photofigcaption: true
+
 # 阅读模式
 readmode: false
 
@@ -101,6 +103,7 @@ inject:
     - "<style>#page-header.full_page, #page-header.not-home-page, #page-header.post-bg { background-color: rgba(40, 120, 220, 0.35); background-blend-mode: overlay; }</style>"
     - "<style>#footer { background-color: rgba(40, 120, 220, 0.35); background-blend-mode: overlay; }</style>"
     - "<style>#local-search .search-dialog hr { display: none; }</style>"
+    - "<style>#article-container figure { text-align: center; margin: 0 0 20px; } #article-container figure figcaption { margin: 10px 0 10px; color: #858585; } #article-container figure video { max-width: 100%; }</style>"
 
 CDN:
   option:
