@@ -1,6 +1,5 @@
 ---
 title: 面向长时运行应用开发的 Harness 设计
-date: 2026-03-31 00:25:00
 cover: images/essay/claude.jpg
 categories:
   - 技术
@@ -10,6 +9,8 @@ tags:
   - Claude
   - Anthropic
   - Harness
+abbrlink: c66e7236
+date: 2026-03-31 00:25:00
 ---
 
 2023、2024 年，大家在学怎么「问」模型——Chain-of-Thought、Few-Shot、角色扮演，核心是把一句话说得让 AI 听懂，这是 Prompt Engineering 的时代。2025 年，Andrej Karpathy 一句话点醒了很多人：光会写 prompt 不够，你得设计模型「看到什么」。RAG、MCP、Memory、工具调用……重点是把整个 context 窗口当成系统来设计，这是 Context Engineering 的时代。
